@@ -364,10 +364,10 @@ static bufsize_t scan_to_closing_backticks(subject *subj,
 // spaces, then removing a single leading + trailing space,
 // unless the code span consists entirely of space characters.
 static void S_normalize_code(cmark_strbuf *s) {
-  bufsize_t r, w;
+  bufsize_t r, w, last_char_after_nl;
   bool contains_nonspace = false;
 
-  for (r = 0, w = 0; r < s->size; ++r) {
+  for (r = 0, w = 0, last_char_after_nl = 0; r < s->size; ++r) {
     switch (s->ptr[r]) {
     case '\r':
       if (s->ptr[r + 1] != '\n') {
@@ -376,13 +376,44 @@ static void S_normalize_code(cmark_strbuf *s) {
       break;
     case '\n':
       s->ptr[w++] = ' ';
+      last_char_after_nl = w;
+      break;
+    case ' ':
+      s->ptr[w++] = s->ptr[r];
       break;
     default:
+      if (last_char_after_nl) {
+        // Remove leading whitespace.
+        bufsize_t remove_len = r - last_char_after_nl;
+
+        if (remove_len) {
+          cmark_strbuf_remove(s, last_char_after_nl, remove_len);
+          w -= remove_len;
+          r -= remove_len;
+        }
+
+        last_char_after_nl = 0;
+      }
+
       s->ptr[w++] = s->ptr[r];
     }
     if (s->ptr[r] != ' ') {
       contains_nonspace = true;
     }
+  }
+
+  if (last_char_after_nl) {
+    // Remove leading whitespace. Only reach here if the closing backquote
+    // delimiter is on its own line.
+    bufsize_t remove_len = r - last_char_after_nl;
+
+    if (remove_len) {
+      cmark_strbuf_remove(s, last_char_after_nl, remove_len);
+      w -= remove_len;
+      r -= remove_len;
+    }
+
+    last_char_after_nl = 0;
   }
 
   // begins and ends with space?
@@ -852,6 +883,10 @@ static cmark_node *handle_backslash(cmark_parser *parser, subject *subj) {
     advance(subj);
     return make_str(subj, subj->pos - 2, subj->pos - 1, cmark_chunk_dup(&subj->input, subj->pos - 1, 1));
   } else if (!is_eof(subj) && skip_line_end(subj)) {
+    // Adjust the subject source position state.
+    ++subj->line;
+    subj->column_offset = -subj->pos;
+
     return make_linebreak(subj->mem);
   } else {
     return make_str(subj, subj->pos - 1, subj->pos - 1, cmark_chunk_literal("\\"));
@@ -1603,10 +1638,21 @@ static int parse_inline(cmark_parser *parser, subject *subj, cmark_node *parent,
   unsigned char c;
   bufsize_t startpos, endpos;
   bufsize_t initpos = subj->pos;
+  int saved_block_offset = subj->block_offset;
+
   c = peek_char(subj);
   if (c == 0) {
     return 0;
   }
+
+  // If NOT the subject's initial line...
+  if (subj->column_offset != 0) {
+    // Reset the block offset. The line's leading trivia was not trimmed,
+    // so the source position will be computed appropriately without the
+    // block offset.
+    subj->block_offset = 0;
+  }
+
   switch (c) {
   case '\r':
   case '\n':
@@ -1689,7 +1735,23 @@ static int parse_inline(cmark_parser *parser, subject *subj, cmark_node *parent,
           cmark_chunk_rtrim(&contents);
         }
 
-        new_inl = make_str(subj, startpos, endpos - 1, contents);
+        // If not the initial line (in the subject) AND at the beginning of another line.
+        if (subj->column_offset != 0 && startpos + subj->column_offset == 0) {
+          // Trim leading whitespace.
+          bufsize_t before_trim = contents.len;
+          cmark_chunk_ltrim(&contents);
+
+          if (contents.len == 0) {
+            // The contents were only whitespaces.
+          } else {
+            // Update the start source position.
+            startpos += before_trim - contents.len;
+          }
+        }
+
+        if (contents.len != 0) {
+          new_inl = make_str(subj, startpos, endpos - 1, contents);
+        }
       }
     }
   }
@@ -1697,6 +1759,8 @@ static int parse_inline(cmark_parser *parser, subject *subj, cmark_node *parent,
   if (new_inl != NULL) {
     append_child(parent, new_inl);
   }
+
+  subj->block_offset = saved_block_offset;
 
   return 1;
 }

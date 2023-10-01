@@ -104,6 +104,9 @@ CMARK_GFM_EXPORT
 void cmark_strbuf_trim(cmark_strbuf *buf);
 
 CMARK_GFM_EXPORT
+void cmark_strbuf_remove(cmark_strbuf *buf, bufsize_t start_offset, bufsize_t len);
+
+CMARK_GFM_EXPORT
 void cmark_strbuf_normalize_whitespace(cmark_strbuf *s);
 
 CMARK_GFM_EXPORT
