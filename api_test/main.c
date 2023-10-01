@@ -1555,59 +1555,50 @@ static void source_pos_fixes_custom(test_batch_runner *runner) {
     free(xml);
     cmark_node_free(doc);
   }
+  {
+    static const char markdown[] =
+        "``foo\n"
+        "bar``\n";
+
+    cmark_node *doc = cmark_parse_document(markdown, sizeof(markdown) - 1, CMARK_OPT_DEFAULT | CMARK_OPT_SOURCEPOS);
+    char *xml = cmark_render_xml(doc, CMARK_OPT_DEFAULT | CMARK_OPT_SOURCEPOS);
+
+    STR_EQ(runner, xml, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        "<!DOCTYPE document SYSTEM \"CommonMark.dtd\">\n"
+                        "<document sourcepos=\"1:1-2:5\" xmlns=\"http://commonmark.org/xml/1.0\">\n"
+                        "  <paragraph sourcepos=\"1:1-2:5\">\n"
+                        "    <code sourcepos=\"1:3-2:3\" xml:space=\"preserve\">foo bar</code>\n"
+                        "  </paragraph>\n"
+                        "</document>\n",
+                        "inline code with softbreak sourcepos are as expected");
+    free(xml);
+    cmark_node_free(doc);
+  }
+  // Note the test below fails since the end column is incorrect.
   /*
   {
     static const char markdown[] =
-        "Test input here\n";
+        "<foo id>\n"
+        "\n"
+        "<foo\n"
+        "id>\n";
 
-    cmark_node *doc = cmark_parse_document(markdown, sizeof(markdown) - 1, CMARK_OPT_DEFAULT);
+    cmark_node *doc = cmark_parse_document(markdown, sizeof(markdown) - 1, CMARK_OPT_DEFAULT | CMARK_OPT_SOURCEPOS);
     char *xml = cmark_render_xml(doc, CMARK_OPT_DEFAULT | CMARK_OPT_SOURCEPOS);
+
     STR_EQ(runner, xml, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                         "<!DOCTYPE document SYSTEM \"CommonMark.dtd\">\n"
-                        "<document sourcepos=\"1:1-1:15\" xmlns=\"http://commonmark.org/xml/1.0\">\n"
-                        "  <paragraph sourcepos=\"1:1-1:15\">\n"
-                        "    <text sourcepos=\"1:1-1:15\" xml:space=\"preserve\">Test input here</text>\n"
+                        "<document sourcepos=\"1:1-4:3\" xmlns=\"http://commonmark.org/xml/1.0\">\n"
+                        "  <html_block sourcepos=\"1:1-1:8\" xml:space=\"preserve\">&lt;foo id&gt;\n</html_block>\n"
+                        "  <paragraph sourcepos=\"3:1-4:3\">\n"
+                        "    <html_inline sourcepos=\"3:1-4:3\" xml:space=\"preserve\">&lt;foo\nid&gt;</html_inline>\n"
                         "  </paragraph>\n"
                         "</document>\n",
-                        "sourcepos (fixes) are as expected");
+                        "inline code with softbreak sourcepos are as expected");
     free(xml);
     cmark_node_free(doc);
   }
-  {
-    static const char markdown[] =
-        "Test input here\n";
-
-    cmark_node *doc = cmark_parse_document(markdown, sizeof(markdown) - 1, CMARK_OPT_DEFAULT);
-    char *xml = cmark_render_xml(doc, CMARK_OPT_DEFAULT | CMARK_OPT_SOURCEPOS);
-    STR_EQ(runner, xml, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                        "<!DOCTYPE document SYSTEM \"CommonMark.dtd\">\n"
-                        "<document sourcepos=\"1:1-1:15\" xmlns=\"http://commonmark.org/xml/1.0\">\n"
-                        "  <paragraph sourcepos=\"1:1-1:15\">\n"
-                        "    <text sourcepos=\"1:1-1:15\" xml:space=\"preserve\">Test input here</text>\n"
-                        "  </paragraph>\n"
-                        "</document>\n",
-                        "sourcepos (fixes) are as expected");
-    free(xml);
-    cmark_node_free(doc);
-  }
-  {
-    static const char markdown[] =
-        "Test input here\n";
-
-    cmark_node *doc = cmark_parse_document(markdown, sizeof(markdown) - 1, CMARK_OPT_DEFAULT);
-    char *xml = cmark_render_xml(doc, CMARK_OPT_DEFAULT | CMARK_OPT_SOURCEPOS);
-    STR_EQ(runner, xml, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                        "<!DOCTYPE document SYSTEM \"CommonMark.dtd\">\n"
-                        "<document sourcepos=\"1:1-1:15\" xmlns=\"http://commonmark.org/xml/1.0\">\n"
-                        "  <paragraph sourcepos=\"1:1-1:15\">\n"
-                        "    <text sourcepos=\"1:1-1:15\" xml:space=\"preserve\">Test input here</text>\n"
-                        "  </paragraph>\n"
-                        "</document>\n",
-                        "sourcepos (fixes) are as expected");
-    free(xml);
-    cmark_node_free(doc);
-  }
-   */
+  */
 }
 
 static void ref_source_pos(test_batch_runner *runner) {
